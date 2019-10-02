@@ -3,6 +3,6 @@ To-do list:
 - Refactor:  commands into modules
 - item command: when not found suggest similarly named items
 - Refactor: move scraping login to separate file, add params (url + map to store into)
-- clean up package.json
+- add 'where to find' to items
 
 
