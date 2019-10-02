@@ -1,6 +1,5 @@
-const cheerio = require('cheerio');
-const jsonframe = require('jsonframe-cheerio');
-const got = require('got');
+const rp = require('request-promise');
+const $ = require('cheerio');
 
 const Discord = require('discord.js');
 const { prefix, token } = require('./config.json');
@@ -8,67 +7,53 @@ const { prefix, token } = require('./config.json');
 const client = new Discord.Client();
 
 client.once('ready', () => {
-	console.log('Palico Ready!');
+    console.log('Palico Ready!');
 });
 
-
-async function fetchPages() {
-    /** Function to parse initial wiki page and grab list of items */
-    const url = 'https://mhworld.kiranico.com/items'
-    const html = await got(url)
-    const $ = cheerio.load(html.body)
-
-    jsonframe($);
-    const frame = {
-        'items': {
-            'selector': 'element-box-tp',
-            'data': [{
-                'name': 'd-none d-xl-inline-block > a',
-                'link': 'd-none d-xl-inline-block > a @ href',
-            }],
-        },
-    };
-
-    const itemList = $('.element-box-tp').scrape(frame);
-
-    console.log(itemList);
-
-    return itemList;
-}
-
-const pages = fetchPages();
+const itemList = new Map();
 
 client.on('message', message => {
 	if (!message.content.startsWith(prefix) || message.author.bot) return;
 
-	const args = message.content.slice(prefix.length).split(/ +/);
+    // Slice prefix out, normalize whitespace then split
+    const args = message.content.slice(prefix.length).split(/ +/);
+
+    // (!) shift() removes first array element and returns it
 	const command = args.shift().toLowerCase();
 
 	if (command === 'ping') {
 		message.channel.send('Pong.');
-	}
-	else if (command === 'items') {
+    }
+    else if (command === 'beep') {
+        message.channel.send('Bop.');
+    }
+    else if (command === 'chad') {
+        message.channel.send('¯\\_(ツ)_/¯ (trademark pending)');
+    }
+	else if (command === 'item') {
 		if (!args.length) {
-			return message.channel.send('You need to type the item name.');
+			return message.channel.send(`Usage: \`${prefix}item item-name \``);
         }
 
-        const userInput = args.join(' ');
+        const userInput = args.join(' ').toLowerCase();
 
-        if (!(userInput in pages)) {
-            return message.channel.send('I don\'t know that item...');
+        console.log(`Someone is looking for item: ${userInput}`);
+
+        if (!itemList.has(userInput)) {
+            return message.channel.send('Sorry, I don\'t know that item...');
         }
         else {
-            const item = pages[userInput];
+            const item = itemList.get(userInput);
 
             const itemEmbed = new Discord.RichEmbed()
                 .setColor('#8fde5d')
-                .setTitle(item.title)
+                .setTitle(item.name)
                 .setURL(item.url)
                 .setDescription('Endemic Life')
-                .addField('Description', item.description, true)
-                .addField('Locations', item.locations)
+                .addField('Description', 'Hehe', true)
+                .addField('Locations', 'Coming soon')
                 .setTimestamp()
-                .setFooter('Info Menu');
+                .setFooter('Item Menu');
 
               message.channel.send(itemEmbed);
         }
@@ -77,4 +62,37 @@ client.on('message', message => {
 	// other commands...
 });
 
-client.login(token);
+async function fetchItems() {
+
+    const url = 'https://mhworld.kiranico.com/items';
+
+    itemList.clear();
+    console.log(`Fetching items from ${url}...`);
+
+    // eslint-disable-next-line no-unused-vars
+    const promise = await rp(url)
+        .then(function(html) {
+            $('span.d-none.d-xl-inline-block > a', html).each(function() {
+                const itemName = $(this).text();
+                const itemUrl = $(this).attr('href');
+
+                // Store scraped item in map,
+                // using lowercase name as key and item (formatted name + url) as value
+                itemList.set(itemName.toLowerCase(), { 'name': itemName, 'url': itemUrl });
+            });
+        })
+        .catch(function(err) {
+            console.error('ERROR - Shit happened -> ', err);
+        });
+    console.log(`Done fetching items. Count: ${itemList.size}`);
+}
+
+// Fetch all items before starting the bot (login)
+Promise.all([fetchItems()])
+    .then(function() {
+        console.log('Logging in...');
+        client.login(token);
+}).catch(function(err) {
+    console.error('Error fetching the items from the wiki. Items will be unavailable. Starting anyway. ', err);
+    client.login(token);
+});
