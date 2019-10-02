@@ -32,30 +32,63 @@ client.on('message', message => {
     }
 	else if (command === 'item') {
 		if (!args.length) {
-			return message.channel.send(`Usage: \`${prefix}item item-name \``);
+			return message.channel.send(`Command usage: \`${prefix}item item-name \``);
         }
 
-        const userInput = args.join(' ').toLowerCase();
+        const input = args.join(' ').toLowerCase();
 
-        console.log(`Someone is looking for item: ${userInput}`);
+        console.log(`Someone is looking for item: ${input}`);
 
-        if (!itemList.has(userInput)) {
+        if (!itemList.has(input)) {
             return message.channel.send('Sorry, I don\'t know that item...');
         }
         else {
-            const item = itemList.get(userInput);
+            const item = itemList.get(input);
 
-            const itemEmbed = new Discord.RichEmbed()
-                .setColor('#8fde5d')
-                .setTitle(item.name)
-                .setURL(item.url)
-                .setDescription('Endemic Life')
-                .addField('Description', 'Hehe', true)
-                .addField('Locations', 'Coming soon')
-                .setTimestamp()
-                .setFooter('Item Menu');
+            // Use item URL to fetch details
+            console.log(`Fetching item from ${item.url}...`);
+            rp(item.url)
+                .then(function(html) {
+                    const imgUrl = $('img.img-fluid', html).attr('src');
+                    const description = $('div.col-sm-6', html).first().text();
 
-              message.channel.send(itemEmbed);
+                    let rarity = 'n/a', max = 'n/a', buy = 'n/a', sell = 'n/a';
+                    $('div.balance-table', html).find('td').each(function() {
+                        const label = $(this).find('div').text().trim();
+
+                        if (label === 'Rarity') {
+                            rarity = $(this).find('strong').text();
+                        }
+                        else if (label === 'Max') {
+                            max = $(this).find('strong').text();
+                        }
+                        else if (label === 'Buy') {
+                            buy = $(this).find('strong').text();
+                        }
+                        else if (label === 'Sell') {
+                            sell = $(this).find('strong').text();
+                        }
+                    });
+
+
+                    const itemEmbed = new Discord.RichEmbed()
+                        .setColor('#8fde5d')
+                        .setTitle(item.name)
+                        .setThumbnail(imgUrl)
+                        .setURL(item.url)
+                        .setDescription(description)
+                        .addField('Rarity', rarity, true)
+                        .addField('Max', max, true)
+                        .addField('Buy', buy, true)
+                        .addField('Sell', sell, true)
+                        .setTimestamp()
+                        .setFooter('Items');
+
+                    message.channel.send(itemEmbed);
+                })
+                .catch(function(err) {
+                    console.error('ERROR - Shit happened -> ', err);
+                });
         }
 
 	}
